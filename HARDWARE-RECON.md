@@ -1,9 +1,6 @@
 # 20 — BQ/Uniteng Station G3: Hardware Recon (pre-arrival)
 
-Status: pure recon, hardware not yet in hand. Captured before starting
-`Reticulum-StationG3` firmware/software work so nothing gets lost. Rep
-confirmed **G3 is fully firmware-compatible with G2 at the core LoRa/SPI
-level** — verified independently below.
+Status: ESP32-S3 firmware port in progress, based on Station G2 RNode firmware + Station G3 PA/LNA GPIO additions (unverified on real hardware yet). The resulting Arduino CLI firmware is in `RNode_Firmware_StationG3/`; build it using [`BUILD_STATION_G3.md`](./BUILD_STATION_G3.md). This firmware uses Reticulum/RNS KISS+command protocol; MeshCore is used only as a pin/sequencing reference.
 
 Sources: https://wiki.bqvoy.com/en/devkits/station-g3 (full page HTML
 captured to `/tmp/station-g3.html` during recon), rep-provided

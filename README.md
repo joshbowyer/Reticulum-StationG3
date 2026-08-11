@@ -11,4 +11,6 @@ See [`HARDWARE-RECON.md`](./HARDWARE-RECON.md) for the full pre-arrival
 hardware recon: pin maps for both daughterboard options, PA/LNA control
 details, and known hardware gotchas.
 
-Status: pre-hardware-arrival planning. Nothing built yet.
+Status: ESP32-S3 firmware port in progress, based on Station G2 RNode firmware + Station G3 PA/LNA GPIO additions (unverified on real hardware yet).
+
+The `RNode_Firmware_StationG3/` directory contains the Arduino CLI-buildable Reticulum/RNS KISS+command protocol firmware. Build instructions are in [`BUILD_STATION_G3.md`](./BUILD_STATION_G3.md); the firmware target uses board-model byte `0x62`. This is not a MeshCore protocol implementation.
