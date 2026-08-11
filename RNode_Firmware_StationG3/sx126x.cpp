@@ -663,8 +663,8 @@ void sx126x::enableTCXO() {
       uint8_t buf[4] = {MODE_TCXO_1_8V_6X, 0x00, 0x00, 0xFF};
     #endif
     executeOpcode(OP_DIO3_TCXO_CTRL_6X, buf, 4);
-    #if BOARD_MODEL == BOARD_STATION_G2
-    delay(5);  // TCXO stabilization delay for Station G2 (typ. 2ms, 5ms for margin)
+    #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
+    delay(5);  // TCXO stabilization delay for Station G2/G3 (typ. 2ms, 5ms for margin)
     #endif
   #endif
 }

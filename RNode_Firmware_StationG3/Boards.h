@@ -118,6 +118,7 @@
   #define BOARD_STATION_G2    0x61 // Station G2
   #define BOARD_STATION_G3    0x62 // Station G3
   #define MODEL_62            0x62 // Station G2, 915 MHz
+  #define MODEL_63            0x63 // Station G3, 915 MHz
 
   #define PRODUCT_HMBRW       0xF0
   #define BOARD_HMBRW         0x32
@@ -778,7 +779,13 @@
       #define DIO2_AS_RF_SWITCH true
       #define HAS_BUSY true
       #define HAS_TCXO true
-      #define OCP_TUNED 0x18
+      // OCP for high-power PA operation. Vendor recon doc specifies
+      // SX126X_CURRENT_LIMIT=140 for G3, which maps to SX1262 OCP register 0x38
+      // (the standard high-power-PA current limit). G2's 0x18/60mA low-power
+      // default was carried over incorrectly — this MUST change together with
+      // the gain curve (B1 fix); raising OCP alone without the curve fix would
+      // worsen overdrive risk.
+      #define OCP_TUNED 0x38
 
       #define HAS_DISPLAY true
       #define HAS_WIFI true
@@ -806,8 +813,12 @@
 
       // TODO: verify real LED pins on G3 hardware. GPIO9/GPIO8 (carried over from
       // G2) are NOT safe here: GPIO9 collides with pin_pa1_en below (writing to the
-      // "LED" would toggle PA high-power mode). Using unused placeholder pins
-      // instead until real G3 LED pins are confirmed.
+      // "LED" would toggle PA high-power mode). Placeholder pins 4 and 3 are also
+      // unverified: GPIO4 is suspected to share a battery-ADC net and GPIO3 is an
+      // ESP32-S3 strapping pin (per vendor recon doc). LED function bodies are
+      // currently no-ops in Utilities.h for G3 until real LED pins are confirmed
+      // from the schematic/pinout tool; these pin constants are kept (harmless if
+      // unused) so the symbol still resolves.
       #if defined(EXTERNAL_LEDS)
         const int pin_led_rx = 4;
         const int pin_led_tx = 3;
@@ -828,13 +839,24 @@
       #define LORA_LNA_GVT  12
 
       // NOTE: G3 hardware recon suggested the BQ35LORA900V1M RF board supports up to 35dBm/3W via PA, but MeshCore's actual shipped G3 firmware config is conservative (~27dBm/0.5W). Starting conservative; increase only after empirical verification on real hardware.
+      // Vendor recon doc note: above ~2W RF output, third-party MCU daughterboards
+      // can suffer FALSE over-voltage-protection trips from near-field coupling near
+      // the SMA connector. Install at least 0.5m of coax between the Station G3's
+      // SMA port and the antenna before any power-calibration testing above ~2W.
       #define PA_MAX_OUTPUT 27
+      // Modem-level TX-power cap (mirrors SX1262 native -9..+22 range). Currently
+      // dead/unreferenced anywhere in the codebase; retained as documentation of
+      // the host-side TX-power ceiling. The modem's own clamp in sx126x::setTxPower
+      // (level > 22 -> 22) makes this redundant at runtime, but kept here so future
+      // callers that want a per-board ceiling have a single authoritative macro.
       #define MAX_LORA_TX_POWER 22
-      // Flat conservative gain curve (no real conducted-power test data for G3 yet).
-      // Every point assumes a flat ~5dB PA gain up to the 27dBm ceiling; replace with
-      // real measured curve once conducted-power testing is done on real hardware.
+      // Vendor recon doc states chip-level LORA_TX_POWER=7 maps to ~27dBm final
+      // output, meaning the real PA gain is ~20dB. This is a flat-conservative
+      // placeholder (no conducted-power test data yet); replace with a real
+      // measured curve once calibration is done. With this curve,
+      // map_target_power_to_modem_output(27) returns 7 (i=7, 7+20=27).
       #define PA_GAIN_POINTS 32
-      #define PA_GAIN_VALUES 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
+      #define PA_GAIN_VALUES 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20
 
       // SX1262 pins
       const int pin_cs = 11;

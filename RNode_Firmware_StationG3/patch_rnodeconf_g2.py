@@ -50,7 +50,9 @@ def patch_rnodeconf():
         if model_insertion_point in content:
             content = content.replace(
                 model_insertion_point,
-                model_insertion_point + "\n    MODEL_62            = 0x62",
+                model_insertion_point
+                + "\n    MODEL_62            = 0x62"
+                + "\n    MODEL_63            = 0x63",
             )
 
         # 2. Add to products dictionary
@@ -70,19 +72,21 @@ def patch_rnodeconf():
             content = content.replace(
                 models_insertion_point,
                 models_insertion_point
-                + '\n    0x62: [902000000, 928000000, 37, "902 - 928 MHz (Station G2, 5W)", "rnode_firmware_station_g2.zip", "SX1262"],',
+                + '\n    0x62: [902000000, 928000000, 37, "902 - 928 MHz (Station G2, 5W)", "rnode_firmware_station_g2.zip", "SX1262"],'
+                + '\n    0x63: [902000000, 928000000, 27, "902 - 928 MHz (Station G3)", "rnode_firmware_station_g3.zip", "SX1262"],',
             )
 
         # Write the modified content
         with open(rnodeconf_path, "w") as f:
             f.write(content)
 
-        print("Successfully patched rnodeconf with Station G2 support")
+        print("Successfully patched rnodeconf with Station G2/G3 support")
         print("Added:")
         print("  - PRODUCT_STATION_G2 = 0x60")
-        print("  - MODEL_62 = 0x62")
+        print("  - MODEL_62 = 0x62  (Station G2, 915 MHz)")
+        print("  - MODEL_63 = 0x63  (Station G3, 915 MHz)")
         print("  - Product name mapping")
-        print("  - Model capabilities (902-928 MHz, 37 dBm max, SX1262)")
+        print("  - Model capabilities (902-928 MHz, SX1262)")
         return True
 
     except ImportError:

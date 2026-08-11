@@ -129,11 +129,11 @@ void setup() {
     boot_seq();
   #endif
 
-  #if BOARD_MODEL != BOARD_RAK4631 && BOARD_MODEL != BOARD_HELTEC_T114 && BOARD_MODEL != BOARD_TECHO && BOARD_MODEL != BOARD_T3S3 && BOARD_MODEL != BOARD_TBEAM_S_V1 && BOARD_MODEL != BOARD_HELTEC32_V3 && BOARD_MODEL != BOARD_HELTEC32_V4 && BOARD_MODEL != BOARD_STATION_G2
+  #if BOARD_MODEL != BOARD_RAK4631 && BOARD_MODEL != BOARD_HELTEC_T114 && BOARD_MODEL != BOARD_TECHO && BOARD_MODEL != BOARD_T3S3 && BOARD_MODEL != BOARD_TBEAM_S_V1 && BOARD_MODEL != BOARD_HELTEC32_V3 && BOARD_MODEL != BOARD_HELTEC32_V4 && BOARD_MODEL != BOARD_STATION_G2 && BOARD_MODEL != BOARD_STATION_G3
     // Some boards need to wait until the hardware UART is set up before booting
     // the full firmware. In the case of the RAK4631 and Heltec T114, the line below will wait
     // until a serial connection is actually established with a master. Thus, it
-    // is disabled on this platform. ESP32-S3 boards (T3S3, Heltec V3/V4, Station G2) use USB
+    // is disabled on this platform. ESP32-S3 boards (T3S3, Heltec V3/V4, Station G2/G3) use USB
     // CDC or timing where while (!Serial) breaks flash tools and rnodeconf probing.
     while (!Serial);
   #endif
@@ -536,8 +536,12 @@ bool startRadio() {
       Serial.print(", hw_ready=");
       Serial.println(hw_ready);
     #endif
-    // Temporary: bypass hw_ready check for Station G2 to test radio functionality
-    #if BOARD_MODEL == BOARD_STATION_G2
+    // Temporary: bypass hw_ready check for Station G2/G3 to test radio functionality
+    // TODO: this is a development-mode bypass, not a production EEPROM-provisioning
+    // fix. For production, eeprom_model_valid() must return true for these boards
+    // (model byte MODEL_62/MODEL_63) so the bypass can be removed and hw_ready is
+    // set via the normal device_init() path.
+    #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
       if (!radio_locked) {
     #else
       if (!radio_locked && hw_ready) {

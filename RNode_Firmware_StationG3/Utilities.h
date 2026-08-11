@@ -340,11 +340,24 @@ uint8_t boot_vector = 0x00;
 		void led_tx_off() { digitalWrite(pin_led_tx, LOW); }
 		void led_id_on()  { }
 		void led_id_off() { }
-	#elif BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
+	#elif BOARD_MODEL == BOARD_STATION_G2
 		void led_rx_on()  { digitalWrite(pin_led_rx, HIGH); }
 		void led_rx_off() {	digitalWrite(pin_led_rx, LOW); }
 		void led_tx_on()  { digitalWrite(pin_led_tx, HIGH); }
 		void led_tx_off() { digitalWrite(pin_led_tx, LOW); }
+		void led_id_on()  { }
+		void led_id_off() { }
+	#elif BOARD_MODEL == BOARD_STATION_G3
+		// G3 LED pins are unverified placeholders (see Boards.h pin_led_rx/_tx
+		// comment). GPIO4 is suspected to collide with a battery-ADC net and
+		// GPIO3 is an ESP32-S3 strapping pin (per vendor recon doc). Safer to
+		// have no LED indication at all on first flash than to blindly drive an
+		// unknown net. All LED functions are no-ops until real G3 LED pins are
+		// confirmed from the schematic/pinout tool.
+		void led_rx_on()  { }
+		void led_rx_off() { }
+		void led_tx_on()  { }
+		void led_tx_off() { }
 		void led_id_on()  { }
 		void led_id_off() { }
 	#endif
@@ -1393,6 +1406,9 @@ void setTXPower() {
 
 		if (model == MODEL_FE) LoRa->setTxPower(mapped_lora_txp, PA_OUTPUT_PA_BOOST_PIN);
 		if (model == MODEL_FF) LoRa->setTxPower(mapped_lora_txp, PA_OUTPUT_RFO_PIN);
+
+		if (model == MODEL_62) LoRa->setTxPower(mapped_lora_txp, PA_OUTPUT_PA_BOOST_PIN);
+		if (model == MODEL_63) LoRa->setTxPower(mapped_lora_txp, PA_OUTPUT_PA_BOOST_PIN);
 	}
 }
 
@@ -1663,6 +1679,12 @@ bool eeprom_model_valid() {
 	if (model == MODEL_FF) {
 	#elif BOARD_MODEL == BOARD_GENERIC_ESP32
 	if (model == MODEL_FF || model == MODEL_FE) {
+	#elif BOARD_MODEL == BOARD_STATION_G3
+	// G3 model byte is 0x63 (MODEL_63). Note: G2 is intentionally not added here
+	// because G2 currently relies on the .ino-side hw_ready bypass in startRadio()
+	// (the "Temporary: bypass hw_ready check for Station G2" guard) for unprovisioned
+	// devices; G2 must be added here too if/when that bypass is removed for both.
+	if (model == MODEL_63) {
 	#else
 	if (false) {
 	#endif
