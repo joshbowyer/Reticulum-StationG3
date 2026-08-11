@@ -1,6 +1,9 @@
 # 20 — BQ/Uniteng Station G3: Hardware Recon (pre-arrival)
 
-Status: ESP32-S3 firmware port in progress, based on Station G2 RNode firmware + Station G3 PA/LNA GPIO additions (unverified on real hardware yet). The resulting Arduino CLI firmware is in `RNode_Firmware_StationG3/`; build it using [`BUILD_STATION_G3.md`](./BUILD_STATION_G3.md). This firmware uses Reticulum/RNS KISS+command protocol; MeshCore is used only as a pin/sequencing reference.
+Status: pure recon, hardware not yet in hand. Captured before starting
+`Reticulum-StationG3` firmware/software work so nothing gets lost. Rep
+confirmed **G3 is fully firmware-compatible with G2 at the core LoRa/SPI
+level** — verified independently below.
 
 Sources: https://wiki.bqvoy.com/en/devkits/station-g3 (full page HTML
 captured to `/tmp/station-g3.html` during recon), rep-provided
@@ -28,6 +31,82 @@ https://git.pblr-nyk.pro/mirror/MeshCore/commit/f4be34a99706820a408a34af3b03dd64
   alternatively be controlled entirely via GPIO/software instead of
   physical jumpers (see below) — **this is Station G3's actual new
   feature over G2**, which only has physical jumper control.
+
+### CONFIRMED via official vendor spec page (retrieved directly from the
+### user, since the wiki page blocks automated/LLM fetches): PA PL1/PL2
+### are NOT independent switches — they're a 2-bit combined level select:
+
+| PL1 | PL2 | PA Operating Mode | Notes |
+|---|---|---|---|
+| OPEN | OPEN | **Power Level 1** | Default recommended setting. Lowest PA output + lowest power consumption. Min supply 9VDC. |
+| OPEN | SHORT | Power Level 2 | Higher than L1. Min supply 9VDC. |
+| SHORT | OPEN | Power Level 3 | Higher than L2. Min supply 9VDC. |
+| SHORT | SHORT | Power Level 4 (**Boost**) | Highest PA output + highest consumption. Min supply **10VDC**. |
+
+OPEN = jumper NOT installed. SHORT = jumper installed. **There is no GPIO
+override for PL2 at all** (confirmed — MeshCore's real shipped G3 config
+only defines a GPIO for PL1, nothing for PL2) — PL2 can ONLY be set via
+the physical jumper. This means **both** PA-PL1 and PA-PL2 must be
+physically OPENED to reach the safe default Level 1; opening only PL1
+while PL2 stays shorted lands on Level 3, not Level 1.
+
+**Official conducted-power test table for Power Level 1** (BW 125kHz,
+SF12, CR4/5, Sync 0xFF, 150-char payload; ±2dB accuracy per SX1262
+datasheet spec, ±1dB statistical from BQ's own QC):
+
+| SX1262 TX Setting (dBm) | PA Output @915MHz (dBm) | Real gain (dB) |
+|---|---|---|
+| 2 | 16.6 | 14.6 |
+| 3 | 17.6 | 14.6 |
+| 4 | 18.7 | 14.7 |
+| 5 | 19.7 | 14.7 |
+| 6 | 20.7 | 14.7 |
+| 7 | 21.7 | 14.7 |
+| 8 | 22.6 | 14.6 |
+| 9 | 23.6 | 14.6 |
+| 10 | 24.4 | 14.4 |
+| 11 | 25.3 | 14.3 |
+| 12 | 26.1 | 14.1 |
+| 13 | 26.9 | 13.9 |
+| 14 | 27.7 | 13.7 |
+| 15 | 28.4 | 13.4 |
+| 16 | 29.2 | 13.2 |
+| 17 | 29.8 | 12.8 |
+| 18 | 30.5 | 12.5 |
+| 19 | 31.1 | 12.1 |
+| 20 | 31.7 | 11.7 |
+| 21 | 32.3 | 11.3 |
+| 22 | 32.8 | 10.8 |
+
+Real gain at Level 1 DECLINES from ~14.7dB (low drive) to ~10.8dB (max
+drive) — NOT flat, and notably lower than the flat-20dB placeholder our
+firmware initially used (which was likely calibrated against a *different*
+PA level, since MeshCore's own "chip TX=7→~27dBm final" data point does
+not match this table's TX=7→21.7dBm at Level 1 at all). No vendor data
+exists yet for Levels 2-4.
+
+**Typical power consumption** (ESP32S3-BQ35LORA900V1M, Level 1): RX
+0.560W, TX 6.330W. RX dominates in most mesh use (TX airtime << RX time).
+
+**LNA P jumper** (single bit, confirmed unchanged from earlier recon):
+OPEN=LNA ON (external LNA w/ dynamic gain+impedance matching enabled,
+~5dB RX dynamic-range improvement over G2), SHORT=LNA OFF (useful in
+high-noise environments). GPIO10 (`P_PRIMARY_LNA_EN`) does have a real
+software override for this one.
+
+**Power/safety warnings from the vendor spec** (Step 3 — Power the
+Device):
+- **"Operation without an antenna may permanently damage the device."**
+  Always have an antenna (or dummy load) connected before powering on.
+- Peak input voltage must NOT exceed 19VDC (barrel jack 9-19VDC, ≥25W
+  rated, OR USB-C 15VDC PD — note plain 5V USB-C does NOT meet the
+  minimum 9VDC requirement for ANY PA level, so the daughterboard's own
+  USB-C port is comms-only, never power, by design).
+- Level 4 (Boost) specifically requires ≥10VDC and ≥25W supply.
+- **Power Good Checker**: press the PG button, all 4 LEDs (D2-D5) must
+  light simultaneously for the board to be within operating spec — D2
+  MCU-daughterboard 3.3V, D3 Grove-I2C/GPS 3.3V, D4 motherboard 5.0V, D5
+  LoRa-PA fast-transient DC-DC. Check this before/during bring-up.
 - **Hardware warning worth heeding from day one**: above ~2W RF output,
   third-party MCU daughterboards can suffer FALSE over-voltage-protection
   trips from near-field coupling near the SMA connector (some third-party

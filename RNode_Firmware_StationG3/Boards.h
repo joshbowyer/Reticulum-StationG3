@@ -813,12 +813,14 @@
 
       // TODO: verify real LED pins on G3 hardware. GPIO9/GPIO8 (carried over from
       // G2) are NOT safe here: GPIO9 collides with pin_pa1_en below (writing to the
-      // "LED" would toggle PA high-power mode). Placeholder pins 4 and 3 are also
-      // unverified: GPIO4 is suspected to share a battery-ADC net and GPIO3 is an
-      // ESP32-S3 strapping pin (per vendor recon doc). LED function bodies are
-      // currently no-ops in Utilities.h for G3 until real LED pins are confirmed
-      // from the schematic/pinout tool; these pin constants are kept (harmless if
-      // unused) so the symbol still resolves.
+      // "LED" would toggle the PA-PL1 software override — see the pin_pa1_en
+      // comment for the full PA-PL1/PA-PL2 2-bit level-select rationale).
+      // Placeholder pins 4 and 3 are also unverified: GPIO4 is suspected to share
+      // a battery-ADC net and GPIO3 is an ESP32-S3 strapping pin (per vendor
+      // recon doc). LED function bodies are currently no-ops in Utilities.h for
+      // G3 until real LED pins are confirmed from the schematic/pinout tool;
+      // these pin constants are kept (harmless if unused) so the symbol still
+      // resolves.
       #if defined(EXTERNAL_LEDS)
         const int pin_led_rx = 4;
         const int pin_led_tx = 3;
@@ -828,6 +830,27 @@
       #endif
 
       // Station G3 PA/LNA GPIO control.
+      //
+      // pin_pa1_en (GPIO9) is the software override for PA-PL1 only. PA-PL1
+      // and PA-PL2 are a 2-bit combined PA Operating Level select, NOT
+      // independent switches:
+      //   PL1 OPEN,  PL2 OPEN  -> Level 1 (lowest, vendor default, 9VDC min)
+      //   PL1 OPEN,  PL2 SHORT -> Level 2 (9VDC min)
+      //   PL1 SHORT, PL2 OPEN  -> Level 3 (9VDC min)
+      //   PL1 SHORT, PL2 SHORT -> Level 4 / Boost (>=10VDC, >=25W required)
+      // Source: BQ/Uniteng vendor spec page, see HARDWARE-RECON.md.
+      //
+      // There is NO GPIO override for PA-PL2 at all — PL2 can ONLY be set
+      // via the physical motherboard jumper. To reach Level 1 in software,
+      // BOTH PA-PL1 and PA-PL2 must be physically OPEN; GPIO9 then
+      // represents the PL1 half of that pair. PA-PL1 polarity:
+      // LOW = open / "PL1 low", HIGH = short / "PL1 high".
+      //
+      // This firmware assumes Level 1 (both jumpers OPEN) and drives
+      // pin_pa1_en LOW permanently in sx126x::begin() — see that file for
+      // the static/permanent-state rationale (no per-request dynamic
+      // PA-level switching is implemented, since PL2 has no software
+      // override anyway).
       const int pin_pa1_en = 9;
       const int pin_lna_en = 10;
       #define LORA_PA_PWR_EN -1
@@ -838,25 +861,57 @@
       #define LORA_LNA_GAIN 19
       #define LORA_LNA_GVT  12
 
-      // NOTE: G3 hardware recon suggested the BQ35LORA900V1M RF board supports up to 35dBm/3W via PA, but MeshCore's actual shipped G3 firmware config is conservative (~27dBm/0.5W). Starting conservative; increase only after empirical verification on real hardware.
-      // Vendor recon doc note: above ~2W RF output, third-party MCU daughterboards
-      // can suffer FALSE over-voltage-protection trips from near-field coupling near
-      // the SMA connector. Install at least 0.5m of coax between the Station G3's
-      // SMA port and the antenna before any power-calibration testing above ~2W.
-      #define PA_MAX_OUTPUT 27
+      // PA gain curve is the vendor's OFFICIAL conducted-power table for the
+      // BQ35LORA900V1M RF daughterboard at PA Operating Level 1 (PA-PL1 and
+      // PA-PL2 jumpers both physically OPEN). Source: BQ/Uniteng vendor spec
+      // page (US915, BW 125kHz/SF12/CR4/5/Sync 0xFF/150-char payload; ±2dB
+      // SX1262 accuracy, ±1dB statistical from BQ's QC). See
+      // HARDWARE-RECON.md for the full source table. This supersedes the
+      // earlier flat-20dB placeholder, which was apparently calibrated against
+      // a different PA-level's data, not Level 1.
+      //
+      // Indexing convention matches G2's own table in this file:
+      // PA_GAIN_POINTS=32 entries covering SX1262 chip TX range -9 to +22
+      // dBm (index = chip_tx_dbm + 9). See G2's #elif BOARD_MODEL ==
+      // BOARD_STATION_G2 block for the same convention.
+      //
+      // Values are floor-rounded gains (PA output dBm − chip TX dBm) from the
+      // vendor table. Indices 0-10 (chip TX -9..+1 dBm) are NOT covered by
+      // the vendor's Level-1 table (which starts at chip TX = +2 dBm); they
+      // are conservatively set equal to index 11's value (the lowest
+      // documented point, gain = 14), which is the safest available
+      // assumption in the absence of vendor data for that drive range.
+      //
+      // *** HARD PHYSICAL-CONFIGURATION ASSUMPTION ***: This curve is ONLY
+      // valid when PA-PL1 and PA-PL2 jumpers are physically OPEN (Level 1 —
+      // the vendor's recommended safe default). Levels 2/3/4 (any PA-PL2
+      // shorted) have different vendor-published gain curves (vendor has not
+      // yet published them), and the curve here would be wrong for those
+      // configurations. There is currently no software mechanism to detect
+      // PL2 state (PL2 has no GPIO override at all — only PL1 has GPIO9), so
+      // this is an unconditional physical-jumper-state assumption baked into
+      // the firmware. Always confirm both jumpers are OPEN before trusting
+      // any output-power reading from this firmware; see BUILD_STATION_G3.md.
+      //
+      // PA_MAX_OUTPUT=32 matches the vendor's own highest documented point
+      // (chip TX +22 → 32.8 dBm → rounds to 32). This supersedes the earlier
+      // interim PA_MAX_OUTPUT=27 placeholder (which was set conservatively
+      // before we had real vendor conducted-power data; the conservatism is
+      // now resolved for Level 1). Final review pass pending — flag in any
+      // future PR if you disagree with this ceiling for Level 1.
+      #define PA_MAX_OUTPUT 32
       // Modem-level TX-power cap (mirrors SX1262 native -9..+22 range). Currently
       // dead/unreferenced anywhere in the codebase; retained as documentation of
       // the host-side TX-power ceiling. The modem's own clamp in sx126x::setTxPower
       // (level > 22 -> 22) makes this redundant at runtime, but kept here so future
       // callers that want a per-board ceiling have a single authoritative macro.
       #define MAX_LORA_TX_POWER 22
-      // Vendor recon doc states chip-level LORA_TX_POWER=7 maps to ~27dBm final
-      // output, meaning the real PA gain is ~20dB. This is a flat-conservative
-      // placeholder (no conducted-power test data yet); replace with a real
-      // measured curve once calibration is done. With this curve,
-      // map_target_power_to_modem_output(27) returns 7 (i=7, 7+20=27).
+      // Vendor recon doc note: above ~2W RF output, third-party MCU daughterboards
+      // can suffer FALSE over-voltage-protection trips from near-field coupling near
+      // the SMA connector. Install at least 0.5m of coax between the Station G3's
+      // SMA port and the antenna before any power-calibration testing above ~2W.
       #define PA_GAIN_POINTS 32
-      #define PA_GAIN_VALUES 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20
+      #define PA_GAIN_VALUES 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 13, 13, 13, 13, 12, 12, 12, 11, 11, 10
 
       // SX1262 pins
       const int pin_cs = 11;

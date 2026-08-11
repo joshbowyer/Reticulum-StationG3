@@ -369,7 +369,18 @@ int sx126x::begin(long frequency) {
       // need to manually raise this.
     #elif LORA_PA_STATIONG3
       pinMode(pin_pa1_en, OUTPUT);
-      digitalWrite(pin_pa1_en, HIGH); // enable PA high-power mode, permanent (not toggled per-TX)
+      // GPIO9 (pin_pa1_en) is the software override for PA-PL1 only. PA-PL1
+      // and PA-PL2 are a 2-bit combined PA Operating Level select (see
+      // Boards.h BOARD_STATION_G3 block). With PA-PL1 and PA-PL2 BOTH
+      // physically OPEN on the motherboard (Level 1, vendor recommended
+      // safe default), GPIO9 needs to be driven LOW to represent
+      // "PL1 open" (LOW = open / "PL1 low" per the vendor truth table).
+      // This is a static/permanent setting: no per-request dynamic
+      // PA-level switching is implemented, since PA-PL2 has no GPIO
+      // override at all and can ONLY be set via its physical jumper.
+      // To reach Level 1 in software, BOTH PA-PL1 and PA-PL2 jumpers
+      // MUST be physically OPEN — see BUILD_STATION_G3.md.
+      digitalWrite(pin_pa1_en, LOW); // PL1-low-equivalent: matches Level 1 (both jumpers OPEN)
     #endif
   #endif
 
