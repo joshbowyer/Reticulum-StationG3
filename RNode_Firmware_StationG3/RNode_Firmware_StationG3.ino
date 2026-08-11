@@ -145,7 +145,11 @@ void setup() {
     input_init();
   #endif
 
-  #if HAS_NP == false
+  #if HAS_NP == false && BOARD_MODEL != BOARD_STATION_G3
+    // G3's pin_led_rx/pin_led_tx are unverified placeholders (GPIO4 suspected
+    // battery-ADC net, GPIO3 is an ESP32-S3 strapping pin) - do not configure
+    // them as outputs at all until real G3 LED pins are confirmed. LED
+    // functions themselves are already no-ops for G3 (see Utilities.h).
     pinMode(pin_led_rx, OUTPUT);
     pinMode(pin_led_tx, OUTPUT);
   #endif
