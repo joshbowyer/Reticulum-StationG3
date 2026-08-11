@@ -804,13 +804,16 @@
 
       const int pin_btn_usr1 = 38;
 
+      // TODO: verify real LED pins on G3 hardware. GPIO9/GPIO8 (carried over from
+      // G2) are NOT safe here: GPIO9 collides with pin_pa1_en below (writing to the
+      // "LED" would toggle PA high-power mode). Using unused placeholder pins
+      // instead until real G3 LED pins are confirmed.
       #if defined(EXTERNAL_LEDS)
-        const int pin_led_rx = 9;
-        const int pin_led_tx = 8;
+        const int pin_led_rx = 4;
+        const int pin_led_tx = 3;
       #else
-        // TODO: verify LED pins on real G3 hardware
-        const int pin_led_rx = 9;
-        const int pin_led_tx = 8;
+        const int pin_led_rx = 4;
+        const int pin_led_tx = 3;
       #endif
 
       // Station G3 PA/LNA GPIO control.
@@ -827,6 +830,11 @@
       // NOTE: G3 hardware recon suggested the BQ35LORA900V1M RF board supports up to 35dBm/3W via PA, but MeshCore's actual shipped G3 firmware config is conservative (~27dBm/0.5W). Starting conservative; increase only after empirical verification on real hardware.
       #define PA_MAX_OUTPUT 27
       #define MAX_LORA_TX_POWER 22
+      // Flat conservative gain curve (no real conducted-power test data for G3 yet).
+      // Every point assumes a flat ~5dB PA gain up to the 27dBm ceiling; replace with
+      // real measured curve once conducted-power testing is done on real hardware.
+      #define PA_GAIN_POINTS 32
+      #define PA_GAIN_VALUES 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
 
       // SX1262 pins
       const int pin_cs = 11;
@@ -838,8 +846,10 @@
       const int pin_sclk = 12;
       const int pin_tcxo_enable = -1;
 
+    #else
+      #error An unsupported ESP32 board was selected. Cannot compile RNode firmware.
+    #endif
 
-  
   #elif MCU_VARIANT == MCU_NRF52
     #if BOARD_MODEL == BOARD_RAK4631
       #define HAS_EEPROM false

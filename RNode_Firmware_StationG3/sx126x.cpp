@@ -657,6 +657,10 @@ void sx126x::enableTCXO() {
       uint8_t buf[4] = {MODE_TCXO_1_8V_6X, 0x00, 0x00, 0xFF};
     #elif BOARD_MODEL == BOARD_STATION_G2
       uint8_t buf[4] = {MODE_TCXO_1_8V_6X, 0x00, 0x00, 0xFF};
+    #elif BOARD_MODEL == BOARD_STATION_G3
+      // TCXO voltage carried over from G2 (1.8V); matches MeshCore's
+      // SX126X_DIO3_TCXO_VOLTAGE=1.8 for the real shipped G3 firmware.
+      uint8_t buf[4] = {MODE_TCXO_1_8V_6X, 0x00, 0x00, 0xFF};
     #endif
     executeOpcode(OP_DIO3_TCXO_CTRL_6X, buf, 4);
     #if BOARD_MODEL == BOARD_STATION_G2
