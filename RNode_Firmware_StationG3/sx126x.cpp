@@ -391,6 +391,7 @@ int sx126x::beginPacket(int implicitHeader) {
       // Enable PA CPS for transmit
       digitalWrite(LORA_PA_CPS, HIGH);
     #endif
+  #endif
   #if HAS_LORA_LNA
     #if LORA_LNA_STATIONG3
       digitalWrite(pin_lna_en, HIGH); // LNA off during TX for protection
