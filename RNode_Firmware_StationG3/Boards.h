@@ -875,6 +875,20 @@
       // dBm (index = chip_tx_dbm + 9). See G2's #elif BOARD_MODEL ==
       // BOARD_STATION_G2 block for the same convention.
       //
+      // *** KNOWN MISMATCH (oracle-reviewed, deferred, pre-existing in G2
+      // too) ***: the runtime code in map_target_power_to_modem_output()
+      // (Utilities.h) actually indexes this table as index == chip_tx_dbm
+      // directly (NO +9 offset) - the comment above describes the INTENDED
+      // convention, not what executes. With this table's non-increasing
+      // curve, that mismatch causes the firmware to systematically
+      // UNDER-deliver requested power by up to ~3dB (never overdrive) -
+      // acceptable for now (within the vendor's own +-2dB/+-1dB tolerance),
+      // but do NOT fix the indexing loop and this table's convention
+      // separately - if the loop is ever corrected, this table (or its
+      // replacement) must be corrected in the SAME commit, or the direction
+      // of the error flips to overdrive. See docs/20-station-g3-recon.md /
+      // oracle review history for full analysis.
+      //
       // Values are floor-rounded gains (PA output dBm − chip TX dBm) from the
       // vendor table. Indices 0-10 (chip TX -9..+1 dBm) are NOT covered by
       // the vendor's Level-1 table (which starts at chip TX = +2 dBm); they
