@@ -273,24 +273,43 @@ compatibility once hardware physically arrives** — not yet verified.
 mPWRD-OS/Lyra work alongside `vidplace7` — this Station G3 investigation
 isn't happening in isolation from that.)
 
-## Open items to confirm once hardware arrives
+## Post-bring-up (live hardware — verified)
 
-- Exact `DIO3_TCXO_VOLTAGE` value for the RPi path (assumed 1.8V by
-  analogy with the ESP32 side's confirmed spec — not independently
-  verified for the RPi config).
-- Whether an INA219 power monitor is actually present/wired (inferred
-  from the `meshtasticd` example config referencing `INA219_MULTIPLIER`,
-  not explicitly confirmed elsewhere on the wiki).
-- Battery-voltage ADC pin, if any (G2 uses ESP32 GPIO4 for this — not yet
-  confirmed for G3 on either daughterboard path).
-- Full 40-pin header table beyond what's captured here (the interactive
-  pinout tool at tools.bqvoy.com is a JS-rendered SPA that didn't extract
-  cleanly via automated fetch — screenshot capture attempted but not yet
-  successfully retrieved).
-- Physical/mechanical fit check for Lyra Zero W as an MCU daughterboard
-  (mPWRD-OS compatibility claim, not yet hands-on verified).
+Hardware arrived and was brought up on the official BQESP32V1M ESP32-S3
+daughterboard. Facts below supersede "pre-arrival" uncertainty where they
+conflict.
+
+### Confirmed working
+
+| Item | Result |
+|------|--------|
+| SPI SX1262 | SCK=12, MISO=14, MOSI=13, NSS=11 (G3-specific; not G2 map) |
+| OLED | SH1106 I2C SDA=5 SCL=6 addr 0x3C; landscape rot 0; page-start offset **0** (Adafruit default 2 wraps columns on this glass) |
+| EEPROM | PRODUCT 0x60, MODEL 0x63, BOARD 0x62; provisioned; signature OK |
+| KISS / RNS | Interface Up @ 915 MHz / 125 kHz / SF7 / CR5 / 5.47 kbps |
+| TX ladder L1 | Config TX 2→32 dBm; Lyra RSSI −51→−30 dBm monotonic; PA-PL1/PL2/LNA-P OPEN |
+| Power | PD USB-C + daughterboard USB-C host link; 65 W PSU OK for L1 ladder |
+| Firmware hash | After flash: `rnodeconf -L` (actual partition SHA) then `-H` that value; reboot. Bin `sha256sum` ≠ partition hash. Mismatch → radio offline (`hw_ready` false). |
+| stat_tx | Wired; KISS CMD_STAT_TX increments after successful TX |
+
+### Repo split (accepted)
+
+- `Reticulum-StationG3` = ESP32 RNode firmware only
+- Pi / Lyra Zero W host driver → `reticulum-hat-mod` as a new `radio_board`
+  profile (same path Lyra already uses for MeshAdv). Do not stuff Pi code
+  into this repo.
+
+### Still open
+
+- Exact `DIO3_TCXO_VOLTAGE` for the RPi path (ESP32 path works with G2 carry-over)
+- INA219 presence/wiring
+- Battery-voltage ADC pin (if any)
+- Full 40-pin header table beyond captured notes
+- Physical fit of Lyra Zero W as MCU daughterboard (mPWRD-OS claim; not hands-on)
+- LED GPIOs (firmware no-ops until confirmed)
+- PA Levels 2–4 (jumpers + curve not validated)
 
 ## Next step
 
-Firmware/software work starts in a new repo: `Reticulum-StationG3`
-(GitHub + Lyra rngit mirror, both to be created next).
+Firmware polish and docs live in this repo. Pi/Lyra daughterboard path is
+tracked separately under `reticulum-hat-mod`.

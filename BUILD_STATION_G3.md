@@ -1,96 +1,130 @@
 # Building RNode Firmware for Station G3
 
-This directory contains the Reticulum/RNS KISS+command protocol firmware port for the Station G3 ESP32-S3 + SX1262 board. It is based on the Station G2 firmware with Station G3 PA/LNA GPIO control.
+Reticulum/RNS KISS+command protocol firmware for the Station G3 ESP32-S3 +
+SX1262 board (BQ/Uniteng BQESP32V1M + BQ35LORA900V1M). Based on Station G2
+firmware with G3 PA/LNA GPIO control, SPI pin map, and SH1106 OLED support.
 
 ## Status
 
-ESP32-S3 firmware port in progress. PA/LNA GPIO additions and the Level-1
-PA gain curve are sourced from the vendor's official spec (see
-`HARDWARE-RECON.md`); full hardware verification still pending on a real
-board.
+**Hardware-verified on a live Station G3** (PA Level 1, jumpers OPEN):
+
+- SPI SX1262 path working (pins SCK=12 MISO=14 MOSI=13 NSS=11)
+- OLED SH1106 I2C working (SDA=5 SCL=6 addr 0x3C, column offset 0)
+- EEPROM product `0x60` / model `0x63` / board `0x62` provisioned
+- TX power ladder 2→32 dBm with Lyra RSSI correlation (monotonic; Level 1)
+- Healthy provisioned boot is KISS-clean (no plaintext on serial)
+
+This repo is **ESP32 RNode firmware only**. Pi/Lyra host-side drivers belong
+in `reticulum-hat-mod` as a `radio_board` profile (not here).
 
 ## Prerequisites
 
 - `arduino-cli`
 - ESP32 Core 2.0.17 (ESP32 Core 3.x can cause undefined-reference errors)
 - Python 3
+- Libraries: Adafruit SH110X, Adafruit GFX (pulled by arduino-cli on compile)
 
-## Build environment
+## Build
 
-From `RNode_Firmware_StationG3/`, prepare the toolchain with:
+From `RNode_Firmware_StationG3/`:
 
 ```bash
 make prep-esp32
-```
-
-The build uses the same Arduino CLI invocation as Station G2, with board model byte `0x62`:
-
-```bash
 make firmware-station_g3
 ```
 
-Equivalent direct command:
+Equivalent direct command (verified FQBN):
 
 ```bash
-arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc" -e --build-property "build.partitions=no_ota" --build-property "upload.maximum_size=2097152" --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x62\""
+arduino-cli compile --log --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc" -e \
+  --build-property "build.partitions=no_ota" \
+  --build-property "upload.maximum_size=2097152" \
+  --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x62\""
 ```
 
-The compiled firmware is written to `build/esp32.esp32.esp32s3/RNode_Firmware_StationG3.ino.bin`.
+Output: `build/esp32.esp32.esp32s3/RNode_Firmware_StationG3.ino.bin`
 
-## Hardware verification items
+Upload example:
 
-LED GPIOs are unverified placeholders (RX 4, TX 3); GPIO4 is suspected to collide with a battery-ADC net and GPIO3 is an ESP32-S3 strapping pin (per vendor recon doc). LED function bodies are no-ops in Utilities.h for G3 until real LED pins are confirmed from the schematic/pinout tool. LNA gain/GVT values are starting estimates and need calibration. TCXO/current-limit/OCP settings are carried over from G2 and require hardware verification.
+```bash
+arduino-cli upload -p /dev/ttyACM0 --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc" .
+```
 
-The PA gain curve in `Boards.h` (`PA_GAIN_VALUES`) and `PA_MAX_OUTPUT=32`
-are now derived from the vendor's OFFICIAL conducted-power test table for
-PA Operating Level 1 (PA-PL1 and PA-PL2 jumpers both OPEN, see
-`HARDWARE-RECON.md` for the source table). The previous flat-20 dB
-placeholder and `PA_MAX_OUTPUT=27` were interim conservative values
-before real vendor data was available; they are superseded.
+### Post-flash firmware hash (required for radio online)
 
-## Bring-up checklist (pre-flash)
+G3 uses the normal `hw_ready` path (`device_init()`). That compares the EEPROM
+**target** firmware hash to `esp_partition_get_sha256()` of the running app
+partition — **not** `sha256sum` of the `.bin` file.
 
-1. **Open PA-PL1, PA-PL2, and LNA-P jumpers on the motherboard.** These
-   are the three jumpers the firmware actually relies on the operator to
-   set physically. Per the BQ/Uniteng vendor spec (see `HARDWARE-RECON.md`):
-   - **PA-PL1 and PA-PL2** are a 2-bit combined PA Operating Level select,
-     NOT independent switches. **Both must be physically OPEN** to reach
-     Level 1 (the vendor-recommended safe default this firmware is
-     calibrated for). Opening only PL1 while PL2 stays shorted lands on
-     Level 3, not Level 1. GPIO9 (`pin_pa1_en`) is the software override
-     for PL1 only — there is **no software override for PL2 at all**, so
-     PL2 must be set via its physical jumper alongside PL1.
-   - **LNA-P**: OPEN = LNA on (with dynamic gain + impedance matching);
-     GPIO10 (`pin_lna_en`) provides software override.
-   - **LNA-S** and **EEPROM** jumpers are unrelated/reserved; leave them
-     as shipped (not installed by default).
-   The PA gain curve in `Boards.h` is ONLY valid at Level 1 (both PA
-   jumpers OPEN). If a future firmware user sets PL2 to SHORT (Levels
-   2/3/4) the curve would be wrong for that configuration — there's no
-   software detection of jumper state, so this is a hard physical
-   configuration assumption.
-2. **Power safety from the vendor spec** (Step 3 — Power the Device):
-   - **Never power on without an antenna or dummy load connected** —
-     vendor states this can permanently damage the device.
-   - Barrel-jack PSU must supply **9-19 VDC** for Levels 1-3 (≥10 VDC
-     specifically required for Level 4 / Boost; not relevant at Level 1
-     but worth noting for future reference), ≥25 W rated. A plain
-     **5 V USB-C connection does NOT meet the 9 VDC minimum for any PA
-     level** — by vendor design the MCU daughterboard's own USB-C port is
-     comms-only, never power. Power comes from the motherboard's 40-pin
-     header.
-   - **Power Good Checker**: press the PG button, confirm all 4 LEDs
-     (D2-D5) light simultaneously — D2 MCU-daughterboard 3.3 V, D3
-     Grove-I2C/GPS 3.3 V, D4 motherboard 5.0 V, D5 LoRa-PA fast-transient
-     DC-DC. All four must be on for the board to be within operating
-     spec.
-3. **Install ≥0.5 m of coax between the SMA port and the antenna** before
-   any power-calibration testing above ~2 W. Above ~2 W RF output,
-   third-party MCU daughterboards can suffer false over-voltage-protection
-   trips from near-field coupling near the SMA connector (see
-   `HARDWARE-RECON.md`).
-4. **Confirm PRODUCT byte = 0x60 (PRODUCT_STATION_G2)** and **MODEL byte =
-   0x63 (MODEL_63)** when provisioning with `rnodeconf`. The G3 board
-   reuses G2's PRODUCT byte for now but uses its own distinct MODEL byte.
+After every flash:
 
-Do not flash until the Station G3 hardware and these assumptions have been confirmed.
+```bash
+# Read the device-calculated partition hash (hidden rnodeconf flags)
+rnodeconf /dev/ttyACM0 -L    # actual hash
+rnodeconf /dev/ttyACM0 -K    # target currently in EEPROM
+
+# Set target = actual, then reboot so device_init() re-runs
+rnodeconf /dev/ttyACM0 -H <actual_hash_from_-L>
+# power-cycle or DTR reset the board
+rnodeconf /dev/ttyACM0 -i    # Normal host-controlled, signature OK
+```
+
+If target ≠ actual, RNS will report params OK but **Radio reporting state is
+offline** (startRadio gated on `hw_ready`). Serial DEBUG on G3 prints
+`device_init() FAILED ... fw_ok=0` in that case.
+
+`stat_tx` increments on successful TX; KISS `CMD_STAT_TX` (0x22) returns the
+count after a packet.
+
+## Board identity
+
+| Field   | Value  | Notes                          |
+|---------|--------|--------------------------------|
+| BOARD   | `0x62` | `BOARD_STATION_G3`             |
+| PRODUCT | `0x60` | Reuses G2 product byte         |
+| MODEL   | `0x63` | Distinct G3 model              |
+
+## Proven pin map (ESP32-S3 path)
+
+| Function     | GPIO | Notes                                      |
+|--------------|------|--------------------------------------------|
+| SX1262 SCK   | 12   | SPI                                        |
+| SX1262 MISO  | 14   | SPI                                        |
+| SX1262 MOSI  | 13   | SPI                                        |
+| SX1262 NSS   | 11   | SPI CS                                     |
+| OLED SDA     | 5    | I2C SH1106                                 |
+| OLED SCL     | 6    | I2C SH1106                                 |
+| OLED addr    | 0x3C | `StationG3_SH1106G` zeros page-start offset|
+
+Display: landscape rotation 0. Adafruit default `_page_start_offset=2` wraps
+two columns on this glass; G3 subclass forces offset 0.
+
+## PA / power (Level 1)
+
+Firmware PA curve (`PA_GAIN_VALUES`, `PA_MAX_OUTPUT=32`) is for **PA Operating
+Level 1 only**:
+
+- **PA-PL1 OPEN, PA-PL2 OPEN, LNA-P OPEN** (physical jumpers)
+- Antenna or dummy load **required** before power-on
+- Barrel PSU 9–19 VDC (≥10 VDC only needed for Level 4 Boost)
+- Live RSSI ladder (short link to Lyra MeshAdv, 915 MHz / 125 kHz / SF7 / CR5):
+  config TX 2→32 dBm → Lyra RSSI −51→−30 dBm, monotonic, never ≥3 dB hot vs step
+
+See `HARDWARE-RECON.md` for the vendor conducted-power table and jumper matrix.
+
+## Still unverified / deferred
+
+- LED GPIOs (RX/TX placeholders; bodies no-op until schematic confirm)
+- LNA gain/GVT fine calibration
+- TCXO/current-limit/OCP beyond G2 carry-over defaults
+- PA Levels 2–4 (different jumper states; curve not valid)
+- Bidirectional RF matrix / long-range tests
+
+## Bring-up checklist
+
+1. Open PA-PL1, PA-PL2, and LNA-P jumpers (Level 1 + LNA on).
+2. Antenna connected; PG button all 4 LEDs on; adequate PSU.
+3. Flash firmware; provision PRODUCT `0x60` MODEL `0x63` if needed.
+4. `rnodeconf -i` → Normal host-controlled, EEPROM OK, signature OK.
+5. RNS interface Up at mesh params; OLED shows RNode status UI.
+6. Optional: single announce + peer RSSI check before raising TX power.
