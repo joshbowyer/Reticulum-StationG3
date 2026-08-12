@@ -266,14 +266,16 @@ void setup() {
     #endif
 
     #if HAS_BLUETOOTH || HAS_BLE == true
-      #if BOARD_MODEL == BOARD_STATION_G2
+      #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
         Serial.println("DEBUG: Starting BLE initialization...");
       #endif
       bool bt_result = bt_init();
       bt_init_ran = true;
-      #if BOARD_MODEL == BOARD_STATION_G2
+      #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
         Serial.print("DEBUG: bt_init() result=");
-        Serial.println(bt_result);
+        Serial.print(bt_result);
+        Serial.print(" bt_ready=");
+        Serial.println(bt_ready);
       #endif
     #endif
 
@@ -533,19 +535,17 @@ void ISR_VECT receive_callback(int packet_size) {
 bool startRadio() {
   update_radio_lock();
   if (!radio_online && !console_active) {
-    // Debug: Print state for Station G2 troubleshooting
-    #if BOARD_MODEL == BOARD_STATION_G2
+    // Debug: Print state for Station G2/G3 troubleshooting
+    #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
       Serial.print("DEBUG: startRadio() - radio_locked=");
       Serial.print(radio_locked);
       Serial.print(", hw_ready=");
       Serial.println(hw_ready);
     #endif
-    // Temporary: bypass hw_ready check for Station G2/G3 to test radio functionality
-    // TODO: this is a development-mode bypass, not a production EEPROM-provisioning
-    // fix. For production, eeprom_model_valid() must return true for these boards
-    // (model byte MODEL_62/MODEL_63) so the bypass can be removed and hw_ready is
-    // set via the normal device_init() path.
-    #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
+    // Temporary: bypass hw_ready check for Station G2 (unprovisioned bring-up).
+    // Station G3 is provisioned (MODEL_63) and eeprom_model_valid() accepts it,
+    // so G3 uses the normal hw_ready path via device_init().
+    #if BOARD_MODEL == BOARD_STATION_G2
       if (!radio_locked) {
     #else
       if (!radio_locked && hw_ready) {
@@ -791,6 +791,7 @@ void transmit(uint16_t size) {
       }
 
       add_airtime(written);
+      stat_tx++;
 
     } else {
       led_tx_on(); uint16_t written = 0;
@@ -799,6 +800,7 @@ void transmit(uint16_t size) {
       else           { LoRa->beginPacket(size); }
       for (uint16_t i=0; i < size; i++) { LoRa->write(tbuf[i]); written++; }
       LoRa->endPacket(); add_airtime(written);
+      stat_tx++;
     }
 
   } else { kiss_indicate_error(ERROR_TXFAILED); led_indicate_error(5); }
@@ -1552,13 +1554,16 @@ void validate_status() {
             #if PLATFORM == PLATFORM_ESP32 || PLATFORM == PLATFORM_NRF52
               if (device_init()) {
                 hw_ready = true;
-                #if BOARD_MODEL == BOARD_STATION_G2
+                #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
                   Serial.println("DEBUG: device_init() succeeded, hw_ready=true");
                 #endif
               } else {
                 hw_ready = false;
-                #if BOARD_MODEL == BOARD_STATION_G2
-                  Serial.println("DEBUG: device_init() FAILED, hw_ready=false");
+                #if BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
+                  Serial.print("DEBUG: device_init() FAILED, hw_ready=false bt_ready=");
+                  Serial.print(bt_ready);
+                  Serial.print(" fw_ok=");
+                  Serial.println(device_firmware_ok());
                 #endif
               }
             #else

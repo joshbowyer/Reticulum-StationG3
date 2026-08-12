@@ -1680,10 +1680,10 @@ bool eeprom_model_valid() {
 	#elif BOARD_MODEL == BOARD_GENERIC_ESP32
 	if (model == MODEL_FF || model == MODEL_FE) {
 	#elif BOARD_MODEL == BOARD_STATION_G3
-	// G3 model byte is 0x63 (MODEL_63). Note: G2 is intentionally not added here
-	// because G2 currently relies on the .ino-side hw_ready bypass in startRadio()
-	// (the "Temporary: bypass hw_ready check for Station G2" guard) for unprovisioned
-	// devices; G2 must be added here too if/when that bypass is removed for both.
+	// G3 model byte is 0x63 (MODEL_63). Provisioned boards take the normal
+	// hw_ready path (no startRadio bypass). G2 is intentionally not listed
+	// here while it still uses the .ino-side hw_ready bypass for unprovisioned
+	// devices; add MODEL_62 here if/when that G2 bypass is removed.
 	if (model == MODEL_63) {
 	#else
 	if (false) {
