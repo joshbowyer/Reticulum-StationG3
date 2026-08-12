@@ -22,7 +22,7 @@
   #elif BOARD_MODEL == BOARD_HELTEC_T114
     #include "ST7789.h"
     #define COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
-  #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
+  #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
     #include <Adafruit_SH110X.h>
   #else
     #include <Wire.h>
@@ -79,7 +79,7 @@
   #define DISP_ADDR 0x3C
   #define SCL_OLED 17
   #define SDA_OLED 18
-#elif BOARD_MODEL == BOARD_STATION_G2
+#elif BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
   #define DISP_RST -1
   #define DISP_ADDR 0x3C
   #define SCL_OLED 6
@@ -118,6 +118,22 @@
   ST7789Spi display(&SPI1, DISPLAY_RST, DISPLAY_DC, DISPLAY_CS);
   #define SSD1306_WHITE ST77XX_WHITE
   #define SSD1306_BLACK ST77XX_BLACK
+#elif BOARD_MODEL == BOARD_STATION_G3
+  // Adafruit_SH1106G::begin() hardcodes _page_start_offset=2 (132-col GDDRAM
+  // inset). On Station G3 glass that overshoots: content shifts +2px right and
+  // the rightmost two columns wrap to the left. Zero the protected offset.
+  class StationG3_SH1106G : public Adafruit_SH1106G {
+  public:
+    using Adafruit_SH1106G::Adafruit_SH1106G;
+    bool begin(uint8_t addr = 0x3C, bool reset = true) {
+      if (!Adafruit_SH1106G::begin(addr, reset)) return false;
+      _page_start_offset = 0;
+      return true;
+    }
+  };
+  StationG3_SH1106G display = StationG3_SH1106G(128, 64, &Wire, -1);
+  #define SSD1306_WHITE SH110X_WHITE
+  #define SSD1306_BLACK SH110X_BLACK
 #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
   Adafruit_SH1106G display = Adafruit_SH1106G(128, 64, &Wire, -1);
   #define SSD1306_WHITE SH110X_WHITE
@@ -237,7 +253,10 @@ void update_area_positions() {
 }
 
 uint8_t display_contrast = 0x00;
-#if BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
+#if BOARD_MODEL == BOARD_STATION_G3
+  void set_contrast(StationG3_SH1106G *display, uint8_t value) {
+  }
+#elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
   void set_contrast(Adafruit_SH1106G *display, uint8_t value) {
   }
 #elif BOARD_MODEL == BOARD_HELTEC_T114
@@ -331,7 +350,7 @@ bool display_init() {
         pinMode(pin_backlight, OUTPUT);
         analogWrite(pin_backlight, 0);
       #endif
-    #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
+    #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
       Wire.begin(SDA_OLED, SCL_OLED);
     #elif BOARD_MODEL == BOARD_XIAO_S3
       Wire.begin(SDA_OLED, SCL_OLED);
@@ -396,7 +415,7 @@ bool display_init() {
     // set white as default pixel colour for Heltec T114
     display.setRGB(COLOR565(0xFF, 0xFF, 0xFF));
     if (false) {
-    #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2
+    #elif BOARD_MODEL == BOARD_TBEAM_S_V1 || BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
     if (!display.begin(display_address, true)) {
     #else
     if (!display.begin(SSD1306_SWITCHCAPVCC, display_address)) {
@@ -433,7 +452,7 @@ bool display_init() {
         #elif BOARD_MODEL == BOARD_TBEAM_S_V1
           disp_mode = DISP_MODE_PORTRAIT;
           display.setRotation(1);
-        #elif BOARD_MODEL == BOARD_STATION_G2
+        #elif BOARD_MODEL == BOARD_STATION_G2 || BOARD_MODEL == BOARD_STATION_G3
           disp_mode = DISP_MODE_LANDSCAPE;
           display.setRotation(0);
         #elif BOARD_MODEL == BOARD_HELTEC32_V2

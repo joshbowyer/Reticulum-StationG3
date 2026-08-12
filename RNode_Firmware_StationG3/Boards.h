@@ -787,28 +787,11 @@
       // worsen overdrive risk.
       #define OCP_TUNED 0x38
 
-      // HAS_DISPLAY disabled: this eval board's ESP32-S3 daughterboard has an
-      // OLED wired somewhere (confirmed present via the vendor's factory demo
-      // firmware, which initializes it successfully with the Adafruit SH1106
-      // library over I2C SDA=5/SCL=6), but this firmware's generic Display.h
-      // driver/init sequence for HAS_DISPLAY=true was blindly carried over
-      // from G2 without confirming it matches this exact display/controller.
-      // Symptom observed: firmware boots, prints EEPROM-unprovisioned notice,
-      // then goes completely silent (no KISS command responses at all) --
-      // consistent with update_display() hanging on an I2C write inside
-      // validate_status(). Disabled as the conservative fix since a display
-      // isn't needed for RNode/transport operation; revisit only if display
-      // functionality is specifically wanted later (would need real Display.h
-      // driver/init verification against the actual controller on this board).
-      //
-      // *** TODO (tracked, not urgent) ***: we DO want display support working
-      // eventually -- RNode firmware supports on-device displays elsewhere
-      // (see BOARD_RNODE_NG_20/21, BOARD_T3S3, etc. for working examples) and
-      // this board genuinely has one (vendor demo confirms it). Not needed for
-      // initial bring-up/transport testing, but worth wiring up correctly later
-      // (confirm exact controller chip + I2C address, verify against a working
-      // Display.h board profile, re-enable HAS_DISPLAY once confirmed safe).
-      #define HAS_DISPLAY false
+      // OLED: SH1106 over I2C SDA=5/SCL=6 (vendor demo + MeshCore G3 variant).
+      // Display.h treats G3 like G2 (Adafruit_SH1106G). Earlier bring-up left
+      // this false after a suspected I2C hang with the wrong driver path;
+      // re-enabled once SH1106 profile was wired explicitly for G3.
+      #define HAS_DISPLAY true
       #define HAS_WIFI true
       #define HAS_BLUETOOTH false
       #define HAS_BLE true
