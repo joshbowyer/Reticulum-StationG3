@@ -284,7 +284,7 @@ upload-xiao_s3:
 	python3 ./Release/esptool/esptool.py --chip esp32s3 --port /dev/ttyACM0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size 4MB 0x210000 ./Release/console_image.bin
 
 upload-station_g3:
-	arduino-cli upload -p $(DEVICE_PORT) --fqbn esp32:esp32:esp32s3
+	arduino-cli upload -p $(DEVICE_PORT) --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc"
 	@sleep 1
 	rnodeconf $(DEVICE_PORT) --firmware-hash $$(./partition_hashes ./build/esp32.esp32.esp32s3/RNode_Firmware_StationG3.ino.bin)
 	@sleep 3
