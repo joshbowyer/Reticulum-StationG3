@@ -1875,15 +1875,30 @@ void serial_poll() {
 #else
   #define MAX_CYCLES 10
 #endif
+// WiFi TCP (and BLE NUS) can deliver a full RNS initRadio() KISS burst in one
+// socket read. The UART-oriented MAX_CYCLES cap (10 on ESP32) only drains a
+// few bytes per main-loop pass, so multi-frame bursts were partially applied
+// before the host validated radio state. Drain the active non-UART transport
+// until the FIFO is full or the source is empty.
+#if HAS_WIFI || HAS_BLUETOOTH || HAS_BLE == true
+  #define MAX_CYCLES_REMOTE 512
+#endif
 void buffer_serial() {
   if (!serial_buffering) {
     serial_buffering = true;
 
-    uint8_t c = 0;
+    uint16_t c = 0;
+    uint16_t cycle_limit = MAX_CYCLES;
+    #if HAS_WIFI
+    if (wifi_host_is_connected()) { cycle_limit = MAX_CYCLES_REMOTE; }
+    #endif
+    #if HAS_BLUETOOTH || HAS_BLE == true
+    if (bt_state == BT_STATE_CONNECTED) { cycle_limit = MAX_CYCLES_REMOTE; }
+    #endif
 
     #if HAS_BLUETOOTH || HAS_BLE == true
     while (
-      c < MAX_CYCLES &&
+      c < cycle_limit &&
       #if HAS_WIFI
       ( (bt_state != BT_STATE_CONNECTED && Serial.available()) || (bt_state == BT_STATE_CONNECTED && SerialBT.available()) || (wr_state >= WR_STATE_ON && wifi_remote_available()) )
       #else
@@ -1891,7 +1906,7 @@ void buffer_serial() {
       #endif
       )
     #else
-    while (c < MAX_CYCLES && Serial.available())
+    while (c < cycle_limit && Serial.available())
     #endif
     {
       c++;

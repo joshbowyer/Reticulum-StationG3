@@ -104,6 +104,10 @@ void wifi_remote_start_sta() {
   wr_wifi_status = WiFi.status(); 
   wifi_initialized = true;
   wr_last_connect_try = millis();
+  // ESP32-S3 aborts if WiFi modem sleep is disabled while BLE is also on
+  // ("Should enable WiFi modem sleep when both WiFi and Bluetooth are enabled").
+  // Keep stock sleep; multi-frame KISS bursts are handled by a larger
+  // buffer_serial drain when a WiFi host is connected.
   #if defined(WIFI_PS_MAX_MODEM)
     WiFi.setSleep(WIFI_PS_MAX_MODEM);
   #else
@@ -182,6 +186,7 @@ bool wifi_remote_available() {
     else {
       // wifi_dbg("Client connected"); // TODO: Remove debug
       connection = client;
+      connection.setNoDelay(true);
       wr_state = WR_STATE_CONNECTED;
       wr_last_read = millis();
       if (connection.available()) { return true; }
@@ -191,12 +196,11 @@ bool wifi_remote_available() {
 }
 
 uint8_t wifi_remote_read() {
+  // Only called after wifi_remote_available() reported data. Do not tear down
+  // the socket on a transient empty read (race with TCP) — that dropped
+  // multi-frame KISS bursts mid-init. Return FEND as a harmless no-op byte.
   if (connection && connection.available()) { return connection.read(); }
-  else {
-    // wifi_dbg("Error: No data to read from TCP socket"); // TODO: Remove debug
-    if (connection) { wifi_remote_close_all(); }
-    return 0xC0;
-  }
+  return 0xC0;
 }
 
 void wifi_remote_write(uint8_t byte) { if (connection) { connection.write(byte); } }
